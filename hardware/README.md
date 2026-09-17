@@ -3,6 +3,8 @@
 Everything physical about the box. The program that runs on it is `panel.py`
 in the top folder.
 
+`BOM.md` lists the parts.
+
 ## schematic/
 
 `schema.fzz` is a [Fritzing](https://fritzing.org/) sketch of the wiring:
