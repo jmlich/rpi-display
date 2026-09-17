@@ -30,6 +30,11 @@ messages = queue.Queue()
 counter = 0
 show_counter = False
 
+# The buttons bounce, so one press can fire the callback several times.
+# Presses closer together than this are ignored.
+DEBOUNCE = 0.3
+last_press = {}
+
 
 def blink_loop():
     while not stop_blinking.is_set():
@@ -46,6 +51,11 @@ def blink_loop():
 def button_pressed(channel):
     global counter
     global show_counter
+
+    now = time.monotonic()
+    if now - last_press.get(channel, 0) < DEBOUNCE:
+        return
+    last_press[channel] = now
 
     print(f"Button on pin {channel} pressed")
 
@@ -74,7 +84,7 @@ def setup_gpio():
             pin,
             GPIO.RISING,
             callback=button_pressed,
-            bouncetime=50
+            bouncetime=200
         )
 
 
