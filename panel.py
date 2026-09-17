@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import os
 import queue
 import threading
 import time
@@ -27,7 +28,15 @@ stop_blinking = threading.Event()
 # Messages waiting to be scrolled on the matrix.
 messages = queue.Queue()
 
-counter = 0
+# The counter survives a restart, it is kept next to this script.
+COUNTER_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "counter.txt")
+
+try:
+    counter = int(open(COUNTER_FILE).read())
+except Exception:
+    counter = 0
+
 show_counter = False
 
 # The buttons bounce, so one press can fire the callback several times.
@@ -66,6 +75,7 @@ def button_pressed(channel):
             blink_enabled.set()
     elif channel == BUTTON_COUNTER:
         counter = counter + 1
+        open(COUNTER_FILE, "w").write(str(counter))
     elif channel == BUTTON_MODE:
         show_counter = not show_counter
     else:
