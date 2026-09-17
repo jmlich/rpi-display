@@ -15,6 +15,7 @@ What goes into one box. The values come from `schematic/schema.fzz`.
 | 1 | KLS15-225-M12 connector | `datasheets/kls15-225-m12-connector.pdf` |
 | 1 | printed case | `enclosure/radio-v3.f3d` |
 | 1 | printed holder for the dome button | `enclosure/button.f3d` |
+| 1 | plexiglass window over the matrix | cut by hand, no drawing |
 |   | wires, screws, M2.5 standoffs | |
 
 The schematic draws only five pull-downs, the dome button has one too.

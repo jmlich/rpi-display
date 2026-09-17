@@ -29,6 +29,9 @@ The case, designed in Fusion 360.
 - `button.f3d` is a separate case for the big dome button on pin 18. The
   button is a 100 mm [arcade dome button](https://www.odkarla.cz/eg-starts-4-100mm-big-dome-12v-led-podsvicene-tlacitko-s-mikrospinacem-pro-dily-arcade-machine~p1507340).
   It is sold with a 12 V LED inside, ours has a 3.3 V one.
+- The window over the LED matrix is a piece of plexiglass, cut by hand to
+  fit the cutout in the case. There is no drawing for it, measure it off the
+  printed part.
 - `drawings/` holds screenshots of the sketches with the measurements:
   - `bottom-plate-dimensions.png` — the plate is 142 x 90 mm
   - `bottom-plate-standoffs.png` — the standoffs that hold the Pi
