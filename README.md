@@ -26,6 +26,9 @@ Needs `RPi.GPIO` and `luma.led_matrix`. Stop it with Ctrl-C.
 | 18  | adds one to the counter     |
 | 11, 13, 15 | scroll their pin name |
 
+The counter is kept in `counter.txt` next to the script, so it survives a
+restart.
+
 ## Files
 
 `panel.py` is the program. `buttons2.py`, `led.py` and `matrix_demo.py` are
