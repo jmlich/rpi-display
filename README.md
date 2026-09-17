@@ -32,4 +32,5 @@ restart.
 ## Files
 
 `panel.py` is the program. `examples/` holds the older demos it was built
-from. They still run on their own.
+from. They still run on their own. `hardware/` holds the wiring, the case and
+the datasheets, see `hardware/README.md`.
