@@ -1,0 +1,5 @@
+#!/bin/bash
+# Login shell of the panel user. When panel.py ends, the login ends and
+# getty starts it again.
+
+exec /opt/panel/venv/bin/python3 /opt/panel/panel.py

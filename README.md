@@ -17,6 +17,8 @@ Pin numbers are BOARD numbers, not BCM.
 
 Needs `RPi.GPIO` and `luma.led_matrix`. Stop it with Ctrl-C.
 
+To make the Pi start it on its own, see `setup/README.md`.
+
 ## Buttons
 
 | Pin | What it does                |
