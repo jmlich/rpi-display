@@ -102,6 +102,9 @@ def make_device():
     serial = spi(port=0, device=0, gpio=noop())
     # rotate=2 because the matrix is mounted upside down
     device = max7219(serial, cascaded=4, block_orientation=-90, rotate=2)
+    # 40, not the full 255. The first box had no window over the matrix
+    # and lit up the whole room at night. A light sensor could set this
+    # from the light in the room instead of a fixed number.
     device.contrast(40)
     return device
 
