@@ -31,5 +31,5 @@ restart.
 
 ## Files
 
-`panel.py` is the program. `buttons2.py`, `led.py` and `matrix_demo.py` are
-the older demos it was built from. They still run on their own.
+`panel.py` is the program. `examples/` holds the older demos it was built
+from. They still run on their own.
