@@ -6,7 +6,7 @@ What goes into one box. The values come from `schematic/schema.fzz`.
 |-----|------|------|
 | 1 | Raspberry Pi 3 model B | the schematic says RPI-3-V1.2 |
 | 1 | MAX7219 LED matrix, 32x8, FC-16 module | four 8x8 blocks, SPI |
-| 1 | [2x20 pin header extender](https://rpishop.cz/headery/127-stohovatelny-2x20-pinovy-nastavec.html) | see the note below |
+| 1 | 40 pin ribbon cable, female to female | see the note below |
 | 5 | PBS-18B pushbutton | `datasheets/pbs-18b-button-gme.pdf` |
 | 1 | 100 mm arcade dome button with LED | pin 18, a 3.3 V LED inside |
 | 1 | red LED, 5 mm | the one that blinks |
@@ -21,7 +21,14 @@ The schematic draws only five pull-downs, the dome button has one too.
 
 ## The header
 
-The linked one is a stacking header, it has long pins that go through the
-board so another board can sit on top. Nothing sits on top of this Pi, so a
-plain 2x20 extender is enough. Buy the stacking one only if it is easier to
-get.
+Everything is wired with jumper wires straight from the GPIO pins, so no
+header is needed. A 2x20 female header is only for a board soldered on top of
+the Pi. The ones in the shop are all for that:
+
+- a stacking header has long pins that pass through the board, for a second
+  board above it
+- a 3.5 mm one is surface mount, it is soldered under a HAT
+- a 90 degree one turns the board on edge
+
+If a small board for the resistors is ever added, then a plain straight 2x20
+female header is the right part.
