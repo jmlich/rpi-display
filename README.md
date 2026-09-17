@@ -3,6 +3,10 @@
 A small Raspberry Pi toy. It shows the time on an LED matrix, blinks an LED
 and reacts to six buttons.
 
+![The box and the dome button](hardware/finished-box.jpg)
+
+A [short video](https://youtu.be/8XoVibW1V2M) shows it running.
+
 ## Hardware
 
 - MAX7219 LED matrix, 4 blocks, on SPI port 0

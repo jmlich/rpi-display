@@ -3,13 +3,14 @@
 Everything physical about the box. The program that runs on it is `panel.py`
 in the top folder.
 
-`BOM.md` lists the parts.
+`BOM.md` lists the parts. `finished-box.jpg` is a photo of the built box.
 
 ## schematic/
 
 `schema.fzz` is a [Fritzing](https://fritzing.org/) sketch of the wiring:
 a Raspberry Pi 3, the MAX7219 matrix, six buttons (S1 to S6) with a pull-down
-resistor each, and one LED with a resistor.
+resistor each, and one LED with a resistor. `schema_bb.png` is the breadboard
+view exported from it.
 
 Board pins used, the same numbers as in `panel.py`:
 
