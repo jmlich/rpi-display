@@ -80,7 +80,8 @@ def setup_gpio():
 
 def make_device():
     serial = spi(port=0, device=0, gpio=noop())
-    device = max7219(serial, cascaded=4, block_orientation=-90, rotate=0)
+    # rotate=2 because the matrix is mounted upside down
+    device = max7219(serial, cascaded=4, block_orientation=-90, rotate=2)
     device.contrast(40)
     return device
 
