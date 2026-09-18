@@ -22,8 +22,8 @@ BUTTONS = [3, 5, 11, 13, 15, 18]
 
 # The blink thread runs all the time. It only blinks when this is set.
 blink_enabled = threading.Event()
-# Set on exit, so the threads know they should finish.
-stopping = threading.Event()
+# Set on exit, so the blink thread knows it should finish.
+stop_blinking = threading.Event()
 
 # Messages waiting to be scrolled on the matrix.
 messages = queue.Queue()
@@ -39,16 +39,14 @@ except Exception:
 
 show_counter = False
 
-# A slow press or release does not make one clean edge, the contact
-# chatters. So the pins are read instead of waiting for an edge: a level
-# counts as real only after it has held for this long.
+# The buttons bounce, so one press can fire the callback several times.
+# Presses closer together than this are ignored.
 DEBOUNCE = 0.3
-# How often the pins are read.
-SAMPLE = 0.01
+last_press = {}
 
 
 def blink_loop():
-    while not stopping.is_set():
+    while not stop_blinking.is_set():
         if blink_enabled.is_set():
             GPIO.output(LED, GPIO.HIGH)
             time.sleep(0.5)
@@ -62,6 +60,11 @@ def blink_loop():
 def button_pressed(channel):
     global counter
     global show_counter
+
+    now = time.monotonic()
+    if now - last_press.get(channel, 0) < DEBOUNCE:
+        return
+    last_press[channel] = now
 
     print(f"Button on pin {channel} pressed")
 
@@ -87,30 +90,12 @@ def setup_gpio():
 
     for pin in BUTTONS:
         GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-
-
-def button_loop():
-    down = {}     # the level we believe, True = button held down
-    reading = {}  # the last sample
-    changed = {}  # when the sample last changed
-    for pin in BUTTONS:
-        down[pin] = False
-        reading[pin] = False
-        changed[pin] = time.monotonic()
-
-    while not stopping.is_set():
-        now = time.monotonic()
-        for pin in BUTTONS:
-            level = GPIO.input(pin) == GPIO.HIGH
-            if level != reading[pin]:
-                # Still moving, wait for it to hold.
-                reading[pin] = level
-                changed[pin] = now
-            elif level != down[pin] and now - changed[pin] >= DEBOUNCE:
-                down[pin] = level
-                if level:
-                    button_pressed(pin)
-        time.sleep(SAMPLE)
+        GPIO.add_event_detect(
+            pin,
+            GPIO.RISING,
+            callback=button_pressed,
+            bouncetime=200
+        )
 
 
 def make_device():
@@ -150,7 +135,6 @@ def display_loop(device):
 
 def main():
     blink_thread = None
-    button_thread = None
 
     try:
         setup_gpio()
@@ -159,16 +143,11 @@ def main():
         blink_thread = threading.Thread(target=blink_loop)
         blink_thread.start()
 
-        button_thread = threading.Thread(target=button_loop)
-        button_thread.start()
-
         display_loop(device)
     except KeyboardInterrupt:
         pass
     finally:
-        stopping.set()
-        if button_thread is not None:
-            button_thread.join()
+        stop_blinking.set()
         if blink_thread is not None:
             blink_thread.join()
             GPIO.output(LED, GPIO.LOW)
