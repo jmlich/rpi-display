@@ -9,7 +9,7 @@ It does these steps, in this order:
 
 | Step | What it does |
 |------|--------------|
-| `install_packages` | apt: `python3-rpi.gpio`, `python3-spidev`, `python3-venv` |
+| `install_packages` | apt: `python3-rpi-lgpio`, `python3-spidev`, `python3-venv` |
 | `install_panel` | copies `panel.py` and `files/panel-shell` to `/opt/panel` |
 | `make_venv` | a venv in `/opt/panel/venv` with `luma.led_matrix` from pip |
 | `create_user` | user `panel` in the `gpio` and `spi` groups |

@@ -134,20 +134,25 @@ def display_loop(device):
 
 
 def main():
-    setup_gpio()
-    device = make_device()
-
-    blink_thread = threading.Thread(target=blink_loop)
-    blink_thread.start()
+    blink_thread = None
 
     try:
+        setup_gpio()
+        device = make_device()
+
+        blink_thread = threading.Thread(target=blink_loop)
+        blink_thread.start()
+
         display_loop(device)
     except KeyboardInterrupt:
         pass
     finally:
         stop_blinking.set()
-        blink_thread.join()
-        GPIO.output(LED, GPIO.LOW)
+        if blink_thread is not None:
+            blink_thread.join()
+            GPIO.output(LED, GPIO.LOW)
+        # setup_gpio() is inside the try, so a failed start still gets here
+        # and gives the pins back. Otherwise the next start fails too.
         GPIO.cleanup()
 
 

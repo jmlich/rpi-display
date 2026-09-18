@@ -19,7 +19,8 @@ Pin numbers are BOARD numbers, not BCM.
 
     ./panel.py
 
-Needs `RPi.GPIO` and `luma.led_matrix`. Stop it with Ctrl-C.
+Needs `luma.led_matrix` and `rpi-lgpio`, the maintained stand-in for
+`RPi.GPIO`. Stop it with Ctrl-C.
 
 To make the Pi start it on its own, see `setup/README.md`.
 

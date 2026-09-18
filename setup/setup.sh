@@ -29,7 +29,10 @@ function config_txt() {
 function install_packages() {
     log "installing packages"
     apt-get update
-    apt-get install -y python3-rpi.gpio python3-spidev python3-venv
+    # rpi-lgpio provides the same RPi.GPIO module, but through /dev/gpiochip0.
+    # RPi.GPIO itself uses /sys/class/gpio, which kernel 6.6 renumbered, and
+    # its add_event_detect fails there.
+    apt-get install -y python3-rpi-lgpio python3-spidev python3-venv
 }
 
 function make_venv() {
