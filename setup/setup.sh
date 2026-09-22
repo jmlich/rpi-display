@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 jmlich
 # Set up an existing Raspberry Pi OS installation to run panel.py.
 #
 #   sudo setup/setup.sh            runs every step
