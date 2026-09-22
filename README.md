@@ -41,3 +41,23 @@ restart.
 `panel.py` is the program. `examples/` holds the older demos it was built
 from. They still run on their own. `hardware/` holds the wiring, the case and
 the datasheets, see `hardware/README.md`.
+
+## Licensing and attribution
+
+The code in this repository is licensed under the [GNU General Public License,
+version 3 or later](LICENSE). The SPDX identifier is `GPL-3.0-or-later`.
+
+Original project documentation, photographs, drawings, and other non-code
+artifacts are intended to be distributed under [Creative Commons
+Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)](https://creativecommons.org/licenses/by-sa/4.0/).
+See [LICENSES.md](LICENSES.md) for the scope of that recommendation.
+
+Third-party assets retain their original licensing and attribution. In
+particular, the Raspberry Pi 3 model in `hardware/parts/raspberry-pi-3/` is
+based on the Thingiverse model by alexandre_willame:
+https://www.thingiverse.com/thing:1701186
+
+The manufacturer datasheets in `hardware/datasheets/` are included for
+reference and should be treated as vendor-provided material. See
+[ATTRIBUTIONS.md](ATTRIBUTIONS.md) for the original source references and
+important reuse notes.
