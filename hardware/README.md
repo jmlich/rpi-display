@@ -56,3 +56,18 @@ can be designed around them. Do not edit them.
 - `pbs-18b-button-gme.pdf` and `pbs-18b-button-tru-components.pdf` — the same
   button from two sellers
 - `kls15-225-m12-connector.pdf` — the M12 connector in the case wall
+
+## Third-party source attribution
+
+This repository contains a few files that are not original project work and
+therefore should not be assumed to be covered by the repository's GPL/CC
+licenses.
+
+- `hardware/parts/raspberry-pi-3/`: original model by alexandre_willame on
+  Thingiverse: https://www.thingiverse.com/thing:1701186
+- `hardware/datasheets/*.pdf`: manufacturer and supplier datasheets. These are
+  vendor-provided materials and should be used under the original publisher's
+  documentation terms and attribution requirements.
+
+See [ATTRIBUTIONS.md](../ATTRIBUTIONS.md) for a full list of original source
+references and attribution notes.
