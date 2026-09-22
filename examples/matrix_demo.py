@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# Copyright (c) 2017-18 Richard Hull and contributors
-# See LICENSE.rst for details.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2017-2018 Richard Hull and contributors
+# Copyright (C) 2026 jmlich
+# See LICENSE for details.
 
 import re
 import time
