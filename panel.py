@@ -21,6 +21,7 @@ LED = 22  # Physical pin 22 = GPIO25
 BUTTON_BLINK = 3     # turns blinking on and off
 BUTTON_MODE = 5      # switches between time and counter
 BUTTON_COUNTER = 18  # increments the counter
+BUTTON_DECREMENT = 11  # decrements the counter
 BUTTONS = [3, 5, 11, 13, 15, 18]
 
 # The blink thread runs all the time. It only blinks when this is set.
@@ -101,6 +102,9 @@ def button_pressed(channel):
             blink_enabled.set()
     elif channel == BUTTON_COUNTER:
         counter = counter + 1
+        open(COUNTER_FILE, "w").write(str(counter))
+    elif channel == BUTTON_DECREMENT:
+        counter = counter - 1
         open(COUNTER_FILE, "w").write(str(counter))
     elif channel == BUTTON_MODE:
         show_counter = not show_counter

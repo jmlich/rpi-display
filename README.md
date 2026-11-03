@@ -31,7 +31,8 @@ To make the Pi start it on its own, see `setup/README.md`.
 | 3   | turns blinking on and off   |
 | 5   | switches time and counter   |
 | 18  | adds one to the counter     |
-| 11, 13, 15 | scroll their pin name |
+| 11  | takes one from the counter  |
+| 13, 15 | scroll their pin name |
 
 The counter is kept in `counter.txt` next to the script, so it survives a
 restart. Every press goes to `buttons.csv`, one row with the time, the
