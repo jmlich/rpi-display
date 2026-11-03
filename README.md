@@ -33,12 +33,18 @@ To make the Pi start it on its own, see `setup/README.md`.
 | 18  | adds one to the counter     |
 | 11  | takes one from the counter  |
 | 13  | scrolls the IPv4 addresses  |
-| 15  | scrolls its pin name        |
+| 15  | scrolls the next OpenAlt talk |
 
 The counter is kept in `counter.txt` next to the script, so it survives a
 restart. Every press goes to `buttons.csv`, one row with the time, the
 seconds since boot and the pin. The seconds since boot are right even when the
 clock is not set yet.
+
+Pin 15 reads `openalt-2026_sessions.json` next to the script. It shows the
+first talk that starts within an hour, otherwise `OpenAlt 2026`. The file is
+not in the repository, it holds the speakers' contacts. Save the output of the
+[talks API](https://talks.openalt.cz/api/events/openalt-2026/submissions/?expand=speakers%2Cslots%2Cslots.room%2Ctrack&limit=1000&state=confirmed)
+there, on the Pi that is `/opt/panel/openalt-2026_sessions.json`.
 
 ## Files
 

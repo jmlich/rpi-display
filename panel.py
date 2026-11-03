@@ -3,11 +3,13 @@
 # Copyright (C) 2026 jmlich
 
 import datetime
+import json
 import os
 import queue
 import subprocess
 import threading
 import time
+import unicodedata
 
 import RPi.GPIO as GPIO
 
@@ -24,6 +26,7 @@ BUTTON_MODE = 5      # switches between time and counter
 BUTTON_COUNTER = 18  # increments the counter
 BUTTON_DECREMENT = 11  # decrements the counter
 BUTTON_IP = 13       # scrolls the IP addresses
+BUTTON_TALK = 15     # scrolls the next OpenAlt talk
 BUTTONS = [3, 5, 11, 13, 15, 18]
 
 # The blink thread runs all the time. It only blinks when this is set.
@@ -41,6 +44,11 @@ COUNTER_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 # gets the time from the network, so the line has the time since boot too.
 LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                         "buttons.csv")
+# The OpenAlt talks, as the pretalx API gives them.
+SESSIONS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             "openalt-2026_sessions.json")
+# A talk further away than this is not shown, the name of the event is.
+TALK_AHEAD = 3600
 
 try:
     counter = int(open(COUNTER_FILE).read())
@@ -95,6 +103,33 @@ def ip_addresses():
     return " ".join(ipv4)
 
 
+def next_talk():
+    try:
+        sessions = json.load(open(SESSIONS_FILE))
+    except Exception:
+        return "OpenAlt 2026"
+
+    now = datetime.datetime.now().astimezone()
+    best = None
+    for talk in sessions["results"]:
+        start = talk["slots"][0]["start"]
+        # A talk without a time slot yet has no start.
+        if start is None:
+            continue
+        start = datetime.datetime.fromisoformat(start)
+        if start < now:
+            continue
+        if best is None or start < best[0]:
+            best = (start, talk["title"])
+
+    if best is None or (best[0] - now).total_seconds() > TALK_AHEAD:
+        return "OpenAlt 2026"
+
+    # The font has no Czech letters, so the accents are dropped.
+    title = unicodedata.normalize("NFKD", best[1])
+    return title.encode("ascii", "ignore").decode()
+
+
 def button_pressed(channel):
     global counter
     global show_counter
@@ -125,6 +160,8 @@ def button_pressed(channel):
         show_counter = not show_counter
     elif channel == BUTTON_IP:
         messages.put(ip_addresses())
+    elif channel == BUTTON_TALK:
+        messages.put(next_talk())
     else:
         messages.put(f"PIN {channel}")
 
