@@ -33,6 +33,8 @@ BUTTONS = [3, 5, 11, 13, 15, 18]
 blink_enabled = threading.Event()
 # Set on exit, so the blink thread knows it should finish.
 stop_blinking = threading.Event()
+# Pin 15 shows the rooms one after another.
+talk_index = 0
 
 # Messages waiting to be scrolled on the matrix.
 messages = queue.Queue()
@@ -47,8 +49,6 @@ LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 # The OpenAlt talks, as the pretalx API gives them.
 SESSIONS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                              "openalt-2026_sessions.json")
-# A talk further away than this is not shown, the name of the event is.
-TALK_AHEAD = 3600
 
 try:
     counter = int(open(COUNTER_FILE).read())
@@ -103,36 +103,55 @@ def ip_addresses():
     return " ".join(ipv4)
 
 
-def next_talk():
+def next_talk(index):
     try:
         sessions = json.load(open(SESSIONS_FILE))
     except Exception:
         return "OpenAlt 2026"
 
+    # The next talk in each room. There are five rooms, the index chooses
+    # which one is shown.
     now = datetime.datetime.now().astimezone()
-    best = None
+    rooms = {}
     for talk in sessions["results"]:
-        start = talk["slots"][0]["start"]
-        # A talk without a time slot yet has no start.
-        if start is None:
+        slot = talk["slots"][0]
+        # A talk without a time slot yet has no start and no room.
+        if slot["start"] is None or slot["room"] is None:
             continue
-        start = datetime.datetime.fromisoformat(start)
+        start = datetime.datetime.fromisoformat(slot["start"])
         if start < now:
             continue
-        if best is None or start < best[0]:
-            best = (start, talk["title"])
+        room = slot["room"]["name"]["en"]
+        if room not in rooms or start < rooms[room][0]:
+            rooms[room] = (start, talk["title"])
 
-    if best is None or (best[0] - now).total_seconds() > TALK_AHEAD:
+    if len(rooms) == 0:
         return "OpenAlt 2026"
 
+    names = sorted(rooms)
+    room = names[index % len(names)]
+    start, title = rooms[room]
+    # For example 4d7h3m, or just 45m when it is soon.
+    minutes = int((start - now).total_seconds() // 60)
+    days = minutes // (24 * 60)
+    hours = minutes // 60 % 24
+    left = ""
+    if days > 0:
+        left = left + f"{days}d"
+    if days > 0 or hours > 0:
+        left = left + f"{hours}h"
+    left = left + f"{minutes % 60}m"
+    message = f"{left} {room} {title}"
+
     # The font has no Czech letters, so the accents are dropped.
-    title = unicodedata.normalize("NFKD", best[1])
-    return title.encode("ascii", "ignore").decode()
+    message = unicodedata.normalize("NFKD", message)
+    return message.encode("ascii", "ignore").decode()
 
 
 def button_pressed(channel):
     global counter
     global show_counter
+    global talk_index
 
     now = time.monotonic()
     if now - last_press.get(channel, 0) < DEBOUNCE:
@@ -161,7 +180,8 @@ def button_pressed(channel):
     elif channel == BUTTON_IP:
         messages.put(ip_addresses())
     elif channel == BUTTON_TALK:
-        messages.put(next_talk())
+        messages.put(next_talk(talk_index))
+        talk_index = talk_index + 1
     else:
         messages.put(f"PIN {channel}")
 

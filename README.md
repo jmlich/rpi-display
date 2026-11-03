@@ -41,8 +41,12 @@ seconds since boot and the pin. The seconds since boot are right even when the
 clock is not set yet.
 
 Pin 15 reads `openalt-2026_sessions.json` next to the script. It shows the
-first talk that starts within an hour, otherwise `OpenAlt 2026`. The file is
-not in the repository, it holds the speakers' contacts. Save the output of the
+next talk in one of the rooms, for example `4d7h3m A113 Z ceho se sklada LLM
+agent?`: the time until it starts, the room and the title. Each press shows
+the next room. When no talk is left, it shows `OpenAlt 2026`.
+
+The file is not in the repository, it holds the speakers' contacts. Save the
+output of the
 [talks API](https://talks.openalt.cz/api/events/openalt-2026/submissions/?expand=speakers%2Cslots%2Cslots.room%2Ctrack&limit=1000&state=confirmed)
 there, on the Pi that is `/opt/panel/openalt-2026_sessions.json`.
 
