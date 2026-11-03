@@ -45,6 +45,9 @@ show_counter = False
 # Presses closer together than this are ignored.
 DEBOUNCE = 0.3
 last_press = {}
+# A long press chatters on release too, which is another rising edge.
+# So a press counts only if the pin is still up after this long.
+HOLD = 0.05
 
 
 def blink_loop():
@@ -65,6 +68,10 @@ def button_pressed(channel):
 
     now = time.monotonic()
     if now - last_press.get(channel, 0) < DEBOUNCE:
+        return
+
+    time.sleep(HOLD)
+    if GPIO.input(channel) != GPIO.HIGH:
         return
     last_press[channel] = now
 
