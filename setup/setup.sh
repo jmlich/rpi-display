@@ -62,7 +62,7 @@ function create_user() {
     else
         usermod --append --groups gpio,spi "$PANEL_USER"
     fi
-    # panel.py writes counter.txt next to itself.
+    # panel.py writes counter.txt and buttons.csv next to itself.
     chown -R "$PANEL_USER:$PANEL_USER" "$PANEL_DIR"
 }
 

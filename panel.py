@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 jmlich
 
+import datetime
 import os
 import queue
 import threading
@@ -33,6 +34,10 @@ messages = queue.Queue()
 # The counter survives a restart, it is kept next to this script.
 COUNTER_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                             "counter.txt")
+# Every press is written here. The clock of the Pi can be wrong before it
+# gets the time from the network, so the line has the time since boot too.
+LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "buttons.csv")
 
 try:
     counter = int(open(COUNTER_FILE).read())
@@ -62,6 +67,18 @@ def blink_loop():
             time.sleep(0.1)
 
 
+def log_press(channel):
+    stamp = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
+    boot = time.clock_gettime(time.CLOCK_BOOTTIME)
+    line = f"{stamp},{boot:.2f},{channel}"
+    print(line)
+    new_file = not os.path.exists(LOG_FILE)
+    with open(LOG_FILE, "a") as f:
+        if new_file:
+            f.write("time,boot,pin\n")
+        f.write(line + "\n")
+
+
 def button_pressed(channel):
     global counter
     global show_counter
@@ -75,7 +92,7 @@ def button_pressed(channel):
         return
     last_press[channel] = now
 
-    print(f"Button on pin {channel} pressed")
+    log_press(channel)
 
     if channel == BUTTON_BLINK:
         if blink_enabled.is_set():

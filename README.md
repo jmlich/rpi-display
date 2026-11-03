@@ -34,7 +34,9 @@ To make the Pi start it on its own, see `setup/README.md`.
 | 11, 13, 15 | scroll their pin name |
 
 The counter is kept in `counter.txt` next to the script, so it survives a
-restart.
+restart. Every press goes to `buttons.csv`, one row with the time, the
+seconds since boot and the pin. The seconds since boot are right even when the
+clock is not set yet.
 
 ## Files
 
