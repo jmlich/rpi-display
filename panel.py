@@ -5,6 +5,7 @@
 import datetime
 import os
 import queue
+import subprocess
 import threading
 import time
 
@@ -22,6 +23,7 @@ BUTTON_BLINK = 3     # turns blinking on and off
 BUTTON_MODE = 5      # switches between time and counter
 BUTTON_COUNTER = 18  # increments the counter
 BUTTON_DECREMENT = 11  # decrements the counter
+BUTTON_IP = 13       # scrolls the IP addresses
 BUTTONS = [3, 5, 11, 13, 15, 18]
 
 # The blink thread runs all the time. It only blinks when this is set.
@@ -80,6 +82,19 @@ def log_press(channel):
         f.write(line + "\n")
 
 
+def ip_addresses():
+    out = subprocess.run(["hostname", "-I"], capture_output=True,
+                         text=True).stdout
+    # Only IPv4, the long IPv6 addresses do not read well on the matrix.
+    ipv4 = []
+    for address in out.split():
+        if ":" not in address:
+            ipv4.append(address)
+    if len(ipv4) == 0:
+        return "NO IP"
+    return " ".join(ipv4)
+
+
 def button_pressed(channel):
     global counter
     global show_counter
@@ -108,6 +123,8 @@ def button_pressed(channel):
         open(COUNTER_FILE, "w").write(str(counter))
     elif channel == BUTTON_MODE:
         show_counter = not show_counter
+    elif channel == BUTTON_IP:
+        messages.put(ip_addresses())
     else:
         messages.put(f"PIN {channel}")
 
