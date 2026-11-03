@@ -29,7 +29,7 @@ To make the Pi start it on its own, see `setup/README.md`.
 | Pin | What it does                |
 |-----|-----------------------------|
 | 3   | turns blinking on and off   |
-| 5   | switches time and counter   |
+| 5   | switches time, counter and talks, scrolls the name of the new one |
 | 18  | adds one to the counter     |
 | 11  | takes one from the counter  |
 | 13  | scrolls the IPv4 addresses  |
@@ -43,7 +43,9 @@ clock is not set yet.
 Pin 15 reads `openalt-2026_sessions.json` next to the script. It shows the
 next talk in one of the rooms, for example `4d7h3m A113 Z ceho se sklada LLM
 agent?`: the time until it starts, the room and the title. Each press shows
-the next room. When no talk is left, it shows `OpenAlt 2026`.
+the next room. When no talk is left, it shows `OpenAlt 2026`. In the talks
+mode of pin 5, the display shows the counter and scrolls one talk every minute,
+each time from the next room too.
 
 The file is not in the repository, it holds the speakers' contacts. Save the
 output of the

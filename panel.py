@@ -22,7 +22,7 @@ from luma.core.legacy.font import proportional, CP437_FONT
 LED = 22  # Physical pin 22 = GPIO25
 
 BUTTON_BLINK = 3     # turns blinking on and off
-BUTTON_MODE = 5      # switches between time and counter
+BUTTON_MODE = 5      # switches between time, counter and talks
 BUTTON_COUNTER = 18  # increments the counter
 BUTTON_DECREMENT = 11  # decrements the counter
 BUTTON_IP = 13       # scrolls the IP addresses
@@ -33,7 +33,7 @@ BUTTONS = [3, 5, 11, 13, 15, 18]
 blink_enabled = threading.Event()
 # Set on exit, so the blink thread knows it should finish.
 stop_blinking = threading.Event()
-# Pin 15 shows the rooms one after another.
+# Pin 15 and the talk mode show the rooms one after another.
 talk_index = 0
 
 # Messages waiting to be scrolled on the matrix.
@@ -49,13 +49,18 @@ LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 # The OpenAlt talks, as the pretalx API gives them.
 SESSIONS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                              "openalt-2026_sessions.json")
+# How often the talk mode shows a talk.
+TALK_EVERY = 60
 
 try:
     counter = int(open(COUNTER_FILE).read())
 except Exception:
     counter = 0
 
-show_counter = False
+# What the display shows. In "talks" it shows the counter and scrolls a talk
+# every TALK_EVERY seconds.
+MODES = ["time", "counter", "talks"]
+mode = "time"
 
 # The buttons bounce, so one press can fire the callback several times.
 # Presses closer together than this are ignored.
@@ -150,7 +155,7 @@ def next_talk(index):
 
 def button_pressed(channel):
     global counter
-    global show_counter
+    global mode
     global talk_index
 
     now = time.monotonic()
@@ -176,7 +181,8 @@ def button_pressed(channel):
         counter = counter - 1
         open(COUNTER_FILE, "w").write(str(counter))
     elif channel == BUTTON_MODE:
-        show_counter = not show_counter
+        mode = MODES[(MODES.index(mode) + 1) % len(MODES)]
+        messages.put(mode.upper())
     elif channel == BUTTON_IP:
         messages.put(ip_addresses())
     elif channel == BUTTON_TALK:
@@ -214,7 +220,17 @@ def make_device():
 
 
 def display_loop(device):
+    global talk_index
+
+    last_talk = time.monotonic()
+
     while True:
+        if time.monotonic() - last_talk >= TALK_EVERY:
+            last_talk = time.monotonic()
+            if mode == "talks":
+                messages.put(next_talk(talk_index))
+                talk_index = talk_index + 1
+
         try:
             message = messages.get_nowait()
         except queue.Empty:
@@ -226,7 +242,7 @@ def display_loop(device):
                          font=proportional(CP437_FONT))
             continue
 
-        if show_counter:
+        if mode == "counter" or mode == "talks":
             msg = str(counter)
         else:
             msg = time.strftime("%H:%M", time.localtime())
