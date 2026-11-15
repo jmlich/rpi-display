@@ -1,0 +1,11 @@
+#EXTM3U
+#EXTINF:-1,Radio Beat
+http://icecast2.play.cz/radiobeat128.mp3
+#EXTINF:-1,Radiozurnal
+http://rozhlas.stream/radiozurnal_high.aac
+#EXTINF:-1,Dvojka
+http://rozhlas.stream/dvojka_high.aac
+#EXTINF:-1,Vltava
+http://rozhlas.stream/vltava_high.aac
+#EXTINF:-1,Jazz
+http://rozhlas.stream/jazz_high.aac

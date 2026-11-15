@@ -1,7 +1,7 @@
 # LED panel
 
-A small Raspberry Pi toy. It shows the time on an LED matrix, blinks an LED
-and reacts to six buttons.
+A small Raspberry Pi toy. It shows the time on an LED matrix, plays internet
+streams and reacts to six buttons.
 
 ![The box and the dome button](hardware/finished-box.jpg)
 
@@ -11,6 +11,7 @@ A [short video](https://youtu.be/8XoVibW1V2M) shows it running.
 
 - MAX7219 LED matrix, 4 blocks, on SPI port 0
 - LED on board pin 22 (GPIO25)
+- Creative Bluetooth Audio D1, a USB sound card, ALSA name `D1`
 - Buttons on board pins 3, 5, 11, 13, 15 and 18, wired to 3V3
 
 Pin numbers are BOARD numbers, not BCM.
@@ -19,38 +20,43 @@ Pin numbers are BOARD numbers, not BCM.
 
     ./panel.py
 
-Needs `luma.led_matrix` and `rpi-lgpio`, the maintained stand-in for
-`RPi.GPIO`. Stop it with Ctrl-C.
+Needs `luma.led_matrix`, `python3-dbus` and `rpi-lgpio`, the maintained
+stand-in for `RPi.GPIO`. Stop it with Ctrl-C.
 
 To make the Pi start it on its own, see `setup/README.md`.
 
 ## Buttons
 
-| Pin | What it does                |
-|-----|-----------------------------|
-| 3   | turns blinking on and off   |
-| 5   | switches time, counter and talks, scrolls the name of the new one |
-| 18  | adds one to the counter     |
-| 11  | takes one from the counter  |
-| 13  | scrolls the IPv4 addresses  |
-| 15  | scrolls the next OpenAlt talk |
+| Pin | What it does                     |
+|-----|----------------------------------|
+| 18  | the big one, starts and stops the player |
+| 3   | previous stream                  |
+| 5   | next stream                      |
+| 13  | volume up                        |
+| 11  | volume down                      |
+| 15  | scrolls the IPv4 addresses       |
 
-The counter is kept in `counter.txt` next to the script, so it survives a
-restart. Every press goes to `buttons.csv`, one row with the time, the
-seconds since boot and the pin. The seconds since boot are right even when the
-clock is not set yet.
+Each press scrolls what it did, for example `NEXT Dvojka` or `VOL UP 50`.
+The LED blinks while the player plays. Every press goes to the journal:
 
-Pin 15 reads `openalt-2026_sessions.json` next to the script. It shows the
-next talk in one of the rooms, for example `4d7h3m A113 Z ceho se sklada LLM
-agent?`: the time until it starts, the room and the title. Each press shows
-the next room. When no talk is left, it shows `OpenAlt 2026`. In the talks
-mode of pin 5, the display shows the counter and scrolls one talk every minute,
-each time from the next room too.
+    journalctl -t panel
 
-The file is not in the repository, it holds the speakers' contacts. Save the
-output of the
-[talks API](https://talks.openalt.cz/api/events/openalt-2026/submissions/?expand=speakers%2Cslots%2Cslots.room%2Ctrack&limit=1000&state=confirmed)
-there, on the Pi that is `/opt/panel/openalt-2026_sessions.json`.
+## Player
+
+VLC plays the streams from `playlist.m3u`, started by
+`setup/files/player.service`. It waits stopped until the big button. `panel.py`
+controls it over MPRIS on the session bus, so it works with any MPRIS player.
+The stream name and the volume scroll on the matrix. While it plays, the song
+scrolls when it changes and once a minute. The volume is kept in `volume.txt`
+next to the script, so it survives a restart.
+
+## Alarms
+
+`alarms.ini` next to the script starts the player at a set time, on the Pi
+that is `/opt/panel/alarms.ini`. The file itself says how. An alarm plays the
+last stream for `duration` minutes and then stops it, unless somebody presses
+the big button. An alarm does nothing when the player already plays. A change
+in the file counts from the next minute, no restart is needed.
 
 ## Files
 

@@ -13,7 +13,7 @@ set -e
 PANEL_USER=panel
 PANEL_DIR=/opt/panel
 REPO_DIR=$(cd "$(dirname "$0")/.." && pwd)  #"
-STEPS="install_packages install_panel make_venv create_user enable_spi set_shell enable_autologin"
+STEPS="install_packages install_panel make_venv create_user enable_spi set_shell enable_autologin enable_player"
 
 function log() {
     echo "==> $*"
@@ -35,6 +35,8 @@ function install_packages() {
     # RPi.GPIO itself uses /sys/class/gpio, which kernel 6.6 renumbered, and
     # its add_event_detect fails there.
     apt-get install -y python3-rpi-lgpio python3-spidev python3-venv
+    # VLC plays the playlist, panel.py talks to it over D-Bus (MPRIS).
+    apt-get install -y --no-install-recommends vlc-bin vlc-plugin-base python3-dbus
 }
 
 function make_venv() {
@@ -51,6 +53,11 @@ function install_panel() {
     log "copying panel.py to $PANEL_DIR"
     mkdir -p "$PANEL_DIR"
     cp "$REPO_DIR/panel.py" "$PANEL_DIR/panel.py"
+    cp "$REPO_DIR/playlist.m3u" "$PANEL_DIR/playlist.m3u"
+    # The alarms are set on the Pi, so a second run keeps them.
+    if [ ! -f "$PANEL_DIR/alarms.ini" ]; then
+        cp "$REPO_DIR/alarms.ini" "$PANEL_DIR/alarms.ini"
+    fi
     cp "$REPO_DIR/setup/files/panel-shell" "$PANEL_DIR/panel-shell"
     chmod 755 "$PANEL_DIR/panel.py" "$PANEL_DIR/panel-shell"
 }
@@ -62,7 +69,7 @@ function create_user() {
     else
         usermod --append --groups gpio,spi "$PANEL_USER"
     fi
-    # panel.py writes counter.txt and buttons.csv next to itself.
+    # The panel user owns its program and its files.
     chown -R "$PANEL_USER:$PANEL_USER" "$PANEL_DIR"
 }
 
@@ -93,6 +100,20 @@ ExecStart=
 ExecStart=-/sbin/agetty --autologin $PANEL_USER --noclear %I \$TERM
 CONF
     systemctl daemon-reload
+}
+
+function enable_player() {
+    local home
+    local dir
+    home=$(getent passwd "$PANEL_USER" | cut -d: -f6)
+    dir="$home/.config/systemd/user"
+    log "starting the player for $PANEL_USER"
+    # Only for this user. A global unit would start a second VLC in every
+    # other login and both would want the sound card.
+    mkdir -p "$dir/default.target.wants"
+    cp "$REPO_DIR/setup/files/player.service" "$dir/player.service"
+    ln -sf ../player.service "$dir/default.target.wants/player.service"
+    chown -R "$PANEL_USER:$PANEL_USER" "$home/.config"
 }
 
 function main() {

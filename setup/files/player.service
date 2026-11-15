@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 jmlich
+# The media player of the panel user. panel.py controls it over MPRIS.
+
+[Unit]
+Description=Media player for the LED panel
+
+[Service]
+# It waits stopped until the big button sends Play. D1 is the Creative Bluetooth Audio D1, a USB sound card.
+ExecStart=/usr/bin/vlc --intf dummy --control dbus --no-video --loop --no-playlist-autostart --aout alsa --alsa-audio-device plughw:CARD=D1 /opt/panel/playlist.m3u
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

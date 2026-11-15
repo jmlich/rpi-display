@@ -2,15 +2,17 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 jmlich
 
+import configparser
 import datetime
-import json
 import os
 import queue
 import subprocess
+import syslog
 import threading
 import time
 import unicodedata
 
+import dbus
 import RPi.GPIO as GPIO
 
 from luma.led_matrix.device import max7219
@@ -21,46 +23,41 @@ from luma.core.legacy.font import proportional, CP437_FONT
 
 LED = 22  # Physical pin 22 = GPIO25
 
-BUTTON_BLINK = 3     # turns blinking on and off
-BUTTON_MODE = 5      # switches between time, counter and talks
-BUTTON_COUNTER = 18  # increments the counter
-BUTTON_DECREMENT = 11  # decrements the counter
-BUTTON_IP = 13       # scrolls the IP addresses
-BUTTON_TALK = 15     # scrolls the next OpenAlt talk
+BUTTON_PREVIOUS = 3   # previous stream
+BUTTON_NEXT = 5       # next stream
+BUTTON_PLAY = 18      # the big button, starts and stops the player
+BUTTON_VOLUME_DOWN = 11
+BUTTON_VOLUME_UP = 13
+BUTTON_IP = 15        # scrolls the IP addresses
 BUTTONS = [3, 5, 11, 13, 15, 18]
 
-# The blink thread runs all the time. It only blinks when this is set.
-blink_enabled = threading.Event()
 # Set on exit, so the blink thread knows it should finish.
 stop_blinking = threading.Event()
-# Pin 15 and the talk mode show the rooms one after another.
-talk_index = 0
 
 # Messages waiting to be scrolled on the matrix.
 messages = queue.Queue()
 
-# The counter survives a restart, it is kept next to this script.
-COUNTER_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                            "counter.txt")
-# Every press is written here. The clock of the Pi can be wrong before it
-# gets the time from the network, so the line has the time since boot too.
-LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                        "buttons.csv")
-# The OpenAlt talks, as the pretalx API gives them.
-SESSIONS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                             "openalt-2026_sessions.json")
-# How often the talk mode shows a talk.
-TALK_EVERY = 60
-
-try:
-    counter = int(open(COUNTER_FILE).read())
-except Exception:
-    counter = 0
-
-# What the display shows. In "talks" it shows the counter and scrolls a talk
-# every TALK_EVERY seconds.
-MODES = ["time", "counter", "talks"]
-mode = "time"
+# The player is a separate program, VLC started by player.service. It is
+# controlled over MPRIS, so any player with MPRIS on the session bus works.
+MPRIS_PREFIX = "org.mpris.MediaPlayer2."
+MPRIS_PATH = "/org/mpris/MediaPlayer2"
+PLAYER = "org.mpris.MediaPlayer2.Player"
+VOLUME_STEP = 0.1
+# The player forgets the volume when it restarts, so panel.py keeps it here
+# and sets it before every Play.
+VOLUME_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                           "volume.txt")
+# While it plays, the display checks the song this often. It scrolls the song
+# when it changes, and again every SONG_EVERY seconds.
+SONG_CHECK = 2
+SONG_EVERY = 60
+# The alarms start the player at a set time, see alarms.ini.
+ALARMS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                           "alarms.ini")
+DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+# When an alarm started the player, it stops at this time.monotonic().
+# None when nothing is to stop.
+stop_at = None
 
 # The buttons bounce, so one press can fire the callback several times.
 # Presses closer together than this are ignored.
@@ -71,28 +68,200 @@ last_press = {}
 HOLD = 0.05
 
 
+def mpris_player():
+    # A new proxy every time, so a restarted player is found again.
+    bus = dbus.SessionBus()
+    for name in bus.list_names():
+        if name.startswith(MPRIS_PREFIX):
+            return bus.get_object(name, MPRIS_PATH)
+    return None
+
+
+def ascii_only(message):
+    # The font has no Czech letters, so the accents are dropped.
+    message = unicodedata.normalize("NFKD", message)
+    return message.encode("ascii", "ignore").decode()
+
+
+def is_playing():
+    try:
+        proxy = mpris_player()
+        if proxy is None:
+            return False
+        status = proxy.Get(PLAYER, "PlaybackStatus",
+                           dbus_interface=dbus.PROPERTIES_IFACE)
+        return status == "Playing"
+    except dbus.DBusException:
+        return False
+
+
+def track_title():
+    # The name of the playlist item, the stream name from playlist.m3u.
+    proxy = mpris_player()
+    metadata = proxy.Get(PLAYER, "Metadata",
+                         dbus_interface=dbus.PROPERTIES_IFACE)
+    return ascii_only(str(metadata.get("xesam:title", "?")))
+
+
+def song():
+    # What the stream plays now, or "" when nothing plays.
+    if not is_playing():
+        return ""
+    try:
+        proxy = mpris_player()
+        metadata = proxy.Get(PLAYER, "Metadata",
+                             dbus_interface=dbus.PROPERTIES_IFACE)
+    except dbus.DBusException:
+        return ""
+    # VLC puts the song of a stream, usually "artist - title", in
+    # vlc:nowplaying. Other players put it in xesam:title.
+    name = str(metadata.get("vlc:nowplaying", ""))
+    if name == "":
+        name = str(metadata.get("xesam:title", ""))
+    return ascii_only(name)
+
+
+def play(proxy, action, volume=None):
+    # Without a volume it plays at the saved one.
+    if volume is None:
+        try:
+            volume = float(open(VOLUME_FILE).read())
+        except (OSError, ValueError):
+            pass
+    if volume is not None:
+        proxy.Set(PLAYER, "Volume", dbus.Double(volume),
+                  dbus_interface=dbus.PROPERTIES_IFACE)
+    proxy.Play(dbus_interface=PLAYER)
+    time.sleep(1)
+    messages.put(action + " " + track_title())
+
+
+def control_player(channel):
+    global stop_at
+
+    proxy = mpris_player()
+    if proxy is None:
+        messages.put("NO PLAYER")
+        return
+
+    if channel == BUTTON_PLAY:
+        # A play from the button is not stopped by an alarm.
+        stop_at = None
+        # Stop, not Pause. A paused stream is old when it goes on again,
+        # Play after Stop opens it again.
+        if is_playing():
+            proxy.Stop(dbus_interface=PLAYER)
+            messages.put("STOP")
+        else:
+            play(proxy, "PLAY")
+    elif channel == BUTTON_NEXT or channel == BUTTON_PREVIOUS:
+        if channel == BUTTON_NEXT:
+            proxy.Next(dbus_interface=PLAYER)
+            action = "NEXT"
+        else:
+            proxy.Previous(dbus_interface=PLAYER)
+            action = "PREV"
+        # The player needs a moment to switch the metadata.
+        time.sleep(1)
+        messages.put(action + " " + track_title())
+    else:
+        volume = proxy.Get(PLAYER, "Volume",
+                           dbus_interface=dbus.PROPERTIES_IFACE)
+        if channel == BUTTON_VOLUME_UP:
+            volume = min(1.0, volume + VOLUME_STEP)
+            action = "VOL UP"
+        else:
+            volume = max(0.0, volume - VOLUME_STEP)
+            action = "VOL DOWN"
+        proxy.Set(PLAYER, "Volume", dbus.Double(volume),
+                  dbus_interface=dbus.PROPERTIES_IFACE)
+        open(VOLUME_FILE, "w").write(str(volume))
+        messages.put(f"{action} {round(volume * 100)}")
+
+
+def due_alarm(now):
+    # The alarm that goes off now, otherwise None.
+    config = configparser.ConfigParser()
+    # A missing file is no alarms.
+    config.read(ALARMS_FILE)
+    for name in config.sections():
+        alarm = config[name]
+        if not alarm.getboolean("enabled", False):
+            continue
+        if alarm.getint("hour") != now.hour or alarm.getint("minute") != now.minute:
+            continue
+        # Without days it goes off every day.
+        days = alarm.get("days", "").split()
+        if len(days) > 0 and DAYS[now.weekday()] not in days:
+            continue
+        if alarm.getboolean("one_shot", False):
+            alarm["enabled"] = "false"
+            with open(ALARMS_FILE, "w") as f:
+                config.write(f)
+        return alarm
+    return None
+
+
+def run_alarms():
+    global stop_at
+
+    try:
+        alarm = due_alarm(datetime.datetime.now())
+        if alarm is None:
+            return
+        minutes = alarm.getint("duration", 60)
+        volume = None
+        if "volume" in alarm:
+            volume = alarm.getint("volume") / 100
+    except (ValueError, configparser.Error) as e:
+        syslog.syslog(syslog.LOG_ERR, f"alarms.ini: {e}")
+        return
+    syslog.syslog(f"alarm, plays {minutes} minutes")
+    try:
+        proxy = mpris_player()
+        if proxy is None:
+            messages.put("NO PLAYER")
+            return
+        # When it already plays, somebody listens, so it is left alone.
+        if is_playing():
+            return
+        play(proxy, "ALARM", volume)
+    except dbus.DBusException as e:
+        syslog.syslog(syslog.LOG_ERR, str(e))
+        messages.put("PLAYER ERROR")
+        return
+    # 0 means it plays until somebody stops it.
+    if minutes > 0:
+        stop_at = time.monotonic() + minutes * 60
+
+
+def stop_alarm():
+    global stop_at
+
+    if stop_at is None or time.monotonic() < stop_at:
+        return
+    stop_at = None
+    syslog.syslog("alarm over")
+    try:
+        proxy = mpris_player()
+        if proxy is not None and is_playing():
+            proxy.Stop(dbus_interface=PLAYER)
+            messages.put("STOP")
+    except dbus.DBusException as e:
+        syslog.syslog(syslog.LOG_ERR, str(e))
+
+
 def blink_loop():
+    # The LED blinks while the player plays.
     while not stop_blinking.is_set():
-        if blink_enabled.is_set():
+        if is_playing():
             GPIO.output(LED, GPIO.HIGH)
             time.sleep(0.5)
             GPIO.output(LED, GPIO.LOW)
             time.sleep(0.5)
         else:
             GPIO.output(LED, GPIO.LOW)
-            time.sleep(0.1)
-
-
-def log_press(channel):
-    stamp = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
-    boot = time.clock_gettime(time.CLOCK_BOOTTIME)
-    line = f"{stamp},{boot:.2f},{channel}"
-    print(line)
-    new_file = not os.path.exists(LOG_FILE)
-    with open(LOG_FILE, "a") as f:
-        if new_file:
-            f.write("time,boot,pin\n")
-        f.write(line + "\n")
+            time.sleep(0.5)
 
 
 def ip_addresses():
@@ -108,56 +277,7 @@ def ip_addresses():
     return " ".join(ipv4)
 
 
-def next_talk(index):
-    try:
-        sessions = json.load(open(SESSIONS_FILE))
-    except Exception:
-        return "OpenAlt 2026"
-
-    # The next talk in each room. There are five rooms, the index chooses
-    # which one is shown.
-    now = datetime.datetime.now().astimezone()
-    rooms = {}
-    for talk in sessions["results"]:
-        slot = talk["slots"][0]
-        # A talk without a time slot yet has no start and no room.
-        if slot["start"] is None or slot["room"] is None:
-            continue
-        start = datetime.datetime.fromisoformat(slot["start"])
-        if start < now:
-            continue
-        room = slot["room"]["name"]["en"]
-        if room not in rooms or start < rooms[room][0]:
-            rooms[room] = (start, talk["title"])
-
-    if len(rooms) == 0:
-        return "OpenAlt 2026"
-
-    names = sorted(rooms)
-    room = names[index % len(names)]
-    start, title = rooms[room]
-    # For example 4d7h3m, or just 45m when it is soon.
-    minutes = int((start - now).total_seconds() // 60)
-    days = minutes // (24 * 60)
-    hours = minutes // 60 % 24
-    left = ""
-    if days > 0:
-        left = left + f"{days}d"
-    if days > 0 or hours > 0:
-        left = left + f"{hours}h"
-    left = left + f"{minutes % 60}m"
-    message = f"{left} {room} {title}"
-
-    # The font has no Czech letters, so the accents are dropped.
-    message = unicodedata.normalize("NFKD", message)
-    return message.encode("ascii", "ignore").decode()
-
-
 def button_pressed(channel):
-    global counter
-    global mode
-    global talk_index
-
     now = time.monotonic()
     if now - last_press.get(channel, 0) < DEBOUNCE:
         return
@@ -166,30 +286,18 @@ def button_pressed(channel):
     if GPIO.input(channel) != GPIO.HIGH:
         return
     last_press[channel] = now
+    # journald keeps the syslog messages, see them with journalctl -t panel.
+    syslog.syslog(f"pin {channel}")
 
-    log_press(channel)
+    if channel == BUTTON_IP:
+        messages.put("IP " + ip_addresses())
+        return
 
-    if channel == BUTTON_BLINK:
-        if blink_enabled.is_set():
-            blink_enabled.clear()
-        else:
-            blink_enabled.set()
-    elif channel == BUTTON_COUNTER:
-        counter = counter + 1
-        open(COUNTER_FILE, "w").write(str(counter))
-    elif channel == BUTTON_DECREMENT:
-        counter = counter - 1
-        open(COUNTER_FILE, "w").write(str(counter))
-    elif channel == BUTTON_MODE:
-        mode = MODES[(MODES.index(mode) + 1) % len(MODES)]
-        messages.put(mode.upper())
-    elif channel == BUTTON_IP:
-        messages.put(ip_addresses())
-    elif channel == BUTTON_TALK:
-        messages.put(next_talk(talk_index))
-        talk_index = talk_index + 1
-    else:
-        messages.put(f"PIN {channel}")
+    try:
+        control_player(channel)
+    except dbus.DBusException as e:
+        syslog.syslog(syslog.LOG_ERR, str(e))
+        messages.put("PLAYER ERROR")
 
 
 def setup_gpio():
@@ -220,16 +328,34 @@ def make_device():
 
 
 def display_loop(device):
-    global talk_index
-
-    last_talk = time.monotonic()
+    last_check = 0
+    last_shown = 0
+    last_song = ""
+    last_minute = ""
 
     while True:
-        if time.monotonic() - last_talk >= TALK_EVERY:
-            last_talk = time.monotonic()
-            if mode == "talks":
-                messages.put(next_talk(talk_index))
-                talk_index = talk_index + 1
+        # The alarms are checked once a minute.
+        minute = time.strftime("%H:%M")
+        if minute != last_minute:
+            last_minute = minute
+            run_alarms()
+        stop_alarm()
+
+        now = time.monotonic()
+        if now - last_check >= SONG_CHECK:
+            last_check = now
+            current = song()
+            # In the journal too, so a stop nobody asked for has a time.
+            if current != last_song:
+                if current == "":
+                    syslog.syslog("stopped")
+                else:
+                    syslog.syslog(f"song {current}")
+            if current != "":
+                if current != last_song or now - last_shown >= SONG_EVERY:
+                    messages.put(current)
+                    last_shown = now
+            last_song = current
 
         try:
             message = messages.get_nowait()
@@ -242,10 +368,7 @@ def display_loop(device):
                          font=proportional(CP437_FONT))
             continue
 
-        if mode == "counter" or mode == "talks":
-            msg = str(counter)
-        else:
-            msg = time.strftime("%H:%M", time.localtime())
+        msg = time.strftime("%H:%M", time.localtime())
 
         with canvas(device) as draw:
             text(draw, (0, 0), msg, fill="white", font=proportional(CP437_FONT))
@@ -256,6 +379,7 @@ def display_loop(device):
 def main():
     blink_thread = None
 
+    syslog.openlog("panel")
     try:
         setup_gpio()
         device = make_device()
