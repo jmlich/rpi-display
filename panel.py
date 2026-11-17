@@ -23,7 +23,7 @@ from luma.core.legacy.font import proportional, CP437_FONT
 
 LED = 22  # Physical pin 22 = GPIO25
 
-BUTTON_PREVIOUS = 3   # previous stream
+BUTTON_ALARM = 3      # turns the alarms off and on
 BUTTON_NEXT = 5       # next stream
 BUTTON_PLAY = 18      # the big button, starts and stops the player
 BUTTON_VOLUME_DOWN = 11
@@ -54,6 +54,9 @@ SONG_EVERY = 60
 # The alarms start the player at a set time, see alarms.ini.
 ALARMS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                            "alarms.ini")
+# While this file exists, the alarms do nothing. Pin 3 makes and removes it.
+ALARMS_OFF_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "alarms_off")
 DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 # When an alarm started the player, it stops at this time.monotonic().
 # None when nothing is to stop.
@@ -159,16 +162,11 @@ def control_player(channel):
         else:
             syslog.syslog(f"pin {channel} sends Play")
             play(proxy, "PLAY")
-    elif channel == BUTTON_NEXT or channel == BUTTON_PREVIOUS:
-        if channel == BUTTON_NEXT:
-            proxy.Next(dbus_interface=PLAYER)
-            action = "NEXT"
-        else:
-            proxy.Previous(dbus_interface=PLAYER)
-            action = "PREV"
+    elif channel == BUTTON_NEXT:
+        proxy.Next(dbus_interface=PLAYER)
         # The player needs a moment to switch the metadata.
         time.sleep(1)
-        messages.put(action + " " + track_title())
+        messages.put("NEXT " + track_title())
     else:
         volume = proxy.Get(PLAYER, "Volume",
                            dbus_interface=dbus.PROPERTIES_IFACE)
@@ -210,6 +208,9 @@ def due_alarm(now):
 def run_alarms():
     global stop_at
 
+    # Checked before due_alarm(), so a one_shot alarm stays for later.
+    if os.path.exists(ALARMS_OFF_FILE):
+        return
     try:
         alarm = due_alarm(datetime.datetime.now())
         if alarm is None:
@@ -314,6 +315,17 @@ def button_pressed(channel):
             messages.put("IP " + ip_addresses())
             return
 
+        if channel == BUTTON_ALARM:
+            if os.path.exists(ALARMS_OFF_FILE):
+                os.remove(ALARMS_OFF_FILE)
+                action = "ALARM ON"
+            else:
+                open(ALARMS_OFF_FILE, "w").close()
+                action = "ALARM OFF"
+            syslog.syslog(action.lower())
+            messages.put(action)
+            return
+
         try:
             control_player(channel)
         except dbus.DBusException as e:
@@ -395,6 +407,10 @@ def display_loop(device):
 
         with canvas(device) as draw:
             text(draw, (0, 0), msg, fill="white", font=proportional(CP437_FONT))
+            # The bottom-left pixel says the alarms are off. The clock never
+            # uses the bottom row.
+            if os.path.exists(ALARMS_OFF_FILE):
+                draw.point((0, 7), fill="white")
 
         time.sleep(0.3)
 

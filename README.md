@@ -30,7 +30,7 @@ To make the Pi start it on its own, see `setup/README.md`.
 | Pin | What it does                     |
 |-----|----------------------------------|
 | 18  | the big one, starts and stops the player |
-| 3   | previous stream                  |
+| 3   | turns the alarms off and on      |
 | 5   | next stream                      |
 | 13  | volume up                        |
 | 11  | volume down                      |
@@ -57,6 +57,10 @@ that is `/opt/panel/alarms.ini`. The file itself says how. An alarm plays the
 last stream for `duration` minutes and then stops it, unless somebody presses
 the big button. An alarm does nothing when the player already plays. A change
 in the file counts from the next minute, no restart is needed.
+
+Pin 3 turns all alarms off and on again. While they are off, the file
+`alarms_off` exists next to the script and the bottom-left pixel of the matrix
+is lit.
 
 ## Files
 
