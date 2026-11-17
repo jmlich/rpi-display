@@ -18,7 +18,8 @@ import RPi.GPIO as GPIO
 from luma.led_matrix.device import max7219
 from luma.core.interface.serial import spi, noop
 from luma.core.render import canvas
-from luma.core.legacy import text, show_message
+from luma.core.sprite_system import framerate_regulator
+from luma.core.legacy import text, textsize
 from luma.core.legacy.font import proportional, CP437_FONT
 
 LED = 22  # Physical pin 22 = GPIO25
@@ -64,6 +65,9 @@ SONG_WAIT = 6
 # When song() first saw the player play, as time.monotonic(). None when it
 # does not play, and after Next, which starts a stream again.
 playing_since = None
+# The song when Next was pressed last. Until the new stream sends its own
+# song, the player can still have the song of the old one.
+old_song = ""
 # The alarms start the player at a set time, see alarms.ini.
 ALARMS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                            "alarms.ini")
@@ -141,6 +145,8 @@ def song():
     # VLC puts the song of a stream, usually "artist - title", in
     # vlc:nowplaying. Other players put it in xesam:title.
     name = str(metadata.get("vlc:nowplaying", ""))
+    if name == old_song:
+        name = ""
     if name == "" and time.monotonic() - playing_since >= SONG_WAIT:
         name = str(metadata.get("xesam:title", ""))
         if name == "":
@@ -189,6 +195,7 @@ def fade_in(volume):
 def control_player(channel):
     global stop_at
     global playing_since
+    global old_song
 
     proxy = mpris_player()
     if proxy is None:
@@ -208,10 +215,18 @@ def control_player(channel):
             syslog.syslog(f"pin {channel} sends Play")
             play(proxy)
     elif channel == BUTTON_NEXT:
+        metadata = proxy.Get(PLAYER, "Metadata",
+                             dbus_interface=dbus.PROPERTIES_IFACE)
+        old_song = str(metadata.get("vlc:nowplaying", ""))
+        old_title = track_title()
         proxy.Next(dbus_interface=PLAYER)
         playing_since = None
-        # The player needs a moment to switch the metadata.
-        time.sleep(1)
+        # The player needs a moment to switch the metadata. Not a fixed second,
+        # because the presses wait for each other and quick ones piled up.
+        for i in range(20):
+            if track_title() != old_title:
+                break
+            time.sleep(0.05)
         messages.put("NEXT " + track_title())
     else:
         volume = proxy.Get(PLAYER, "Volume",
@@ -408,6 +423,21 @@ def make_device():
     return device
 
 
+def scroll_message(device, message):
+    # show_message() of luma.core.legacy, but a new message stops it, so a
+    # second press does not wait for the first one to scroll to the end.
+    font = proportional(CP437_FONT)
+    regulator = framerate_regulator(1 / 0.03)
+    width = textsize(message, font)[0]
+    for x in range(width + device.width + 1):
+        if not messages.empty():
+            return
+        with regulator:
+            with canvas(device) as draw:
+                text(draw, (device.width - x, 0), message, fill="white",
+                     font=font)
+
+
 def display_loop(device):
     last_check = 0
     last_shown = 0
@@ -438,15 +468,17 @@ def display_loop(device):
                     last_shown = now
             last_song = current
 
-        try:
-            message = messages.get_nowait()
-        except queue.Empty:
-            message = None
+        # Only the newest message scrolls, the older ones are old news.
+        message = None
+        while True:
+            try:
+                message = messages.get_nowait()
+            except queue.Empty:
+                break
 
         # A button message takes over the matrix for a moment.
         if message is not None:
-            show_message(device, message, fill="white",
-                         font=proportional(CP437_FONT))
+            scroll_message(device, message)
             continue
 
         msg = time.strftime("%H:%M", time.localtime())
