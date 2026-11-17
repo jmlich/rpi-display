@@ -23,12 +23,14 @@ from luma.core.legacy.font import proportional, CP437_FONT
 
 LED = 22  # Physical pin 22 = GPIO25
 
-BUTTON_ALARM = 3      # turns the alarms off and on
+# The small buttons from left to right on the box: the row of two, then the
+# row of three.
+BUTTON_VOLUME_UP = 15
+BUTTON_VOLUME_DOWN = 13
+BUTTON_IP = 11        # scrolls the IP addresses
 BUTTON_NEXT = 5       # next stream
+BUTTON_ALARM = 3      # turns the alarms off and on
 BUTTON_PLAY = 18      # the big button, starts and stops the player
-BUTTON_VOLUME_DOWN = 11
-BUTTON_VOLUME_UP = 13
-BUTTON_IP = 15        # scrolls the IP addresses
 BUTTONS = [3, 5, 11, 13, 15, 18]
 
 # Set on exit, so the blink thread knows it should finish.

@@ -27,14 +27,16 @@ To make the Pi start it on its own, see `setup/README.md`.
 
 ## Buttons
 
-| Pin | What it does                     |
-|-----|----------------------------------|
-| 18  | the big one, starts and stops the player |
-| 3   | turns the alarms off and on      |
-| 5   | next stream                      |
-| 13  | volume up                        |
-| 11  | volume down                      |
-| 15  | scrolls the IPv4 addresses       |
+From left to right on the box:
+
+| Button              | Pin | What it does                     |
+|---------------------|-----|----------------------------------|
+| row of two, 1st     | 15  | volume up                        |
+| row of two, 2nd     | 13  | volume down                      |
+| row of three, 1st   | 11  | scrolls the IPv4 addresses       |
+| row of three, 2nd   | 5   | next stream                      |
+| row of three, 3rd   | 3   | turns the alarms off and on      |
+| big button          | 18  | starts and stops the player      |
 
 Each press scrolls what it did, for example `NEXT Dvojka` or `VOL UP 50`.
 The LED blinks while the player plays. Every press goes to the journal:
