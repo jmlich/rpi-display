@@ -66,6 +66,9 @@ last_press = {}
 # A long press chatters on release too, which is another rising edge.
 # So a press counts only if the pin is still up after this long.
 HOLD = 0.05
+# When the last button callback finished. All callbacks run one after another
+# in one thread, so an edge that comes during a slow callback waits for it.
+callback_end = 0
 
 
 def mpris_player():
@@ -150,9 +153,11 @@ def control_player(channel):
         # Stop, not Pause. A paused stream is old when it goes on again,
         # Play after Stop opens it again.
         if is_playing():
+            syslog.syslog(f"pin {channel} sends Stop")
             proxy.Stop(dbus_interface=PLAYER)
             messages.put("STOP")
         else:
+            syslog.syslog(f"pin {channel} sends Play")
             play(proxy, "PLAY")
     elif channel == BUTTON_NEXT or channel == BUTTON_PREVIOUS:
         if channel == BUTTON_NEXT:
@@ -253,8 +258,15 @@ def stop_alarm():
 
 def blink_loop():
     # The LED blinks while the player plays.
+    # It checks the player every second, so it also logs a short play that the
+    # song check in display_loop() misses.
+    was_playing = False
     while not stop_blinking.is_set():
-        if is_playing():
+        playing = is_playing()
+        if playing != was_playing:
+            syslog.syslog("player plays" if playing else "player does not play")
+            was_playing = playing
+        if playing:
             GPIO.output(LED, GPIO.HIGH)
             time.sleep(0.5)
             GPIO.output(LED, GPIO.LOW)
@@ -278,26 +290,37 @@ def ip_addresses():
 
 
 def button_pressed(channel):
+    global callback_end
+
     now = time.monotonic()
-    if now - last_press.get(channel, 0) < DEBOUNCE:
-        return
-
-    time.sleep(HOLD)
-    if GPIO.input(channel) != GPIO.HIGH:
-        return
-    last_press[channel] = now
-    # journald keeps the syslog messages, see them with journalctl -t panel.
-    syslog.syslog(f"pin {channel}")
-
-    if channel == BUTTON_IP:
-        messages.put("IP " + ip_addresses())
-        return
-
+    # Every edge goes to the journal, the ignored ones too. Close to 0 s after
+    # the last callback means the edge waited for it.
+    details = (f"{now - last_press.get(channel, 0):.2f} s after the last press, "
+               f"{now - callback_end:.2f} s after the last callback")
     try:
-        control_player(channel)
-    except dbus.DBusException as e:
-        syslog.syslog(syslog.LOG_ERR, str(e))
-        messages.put("PLAYER ERROR")
+        if now - last_press.get(channel, 0) < DEBOUNCE:
+            syslog.syslog(f"pin {channel} ignored, bounce, {details}")
+            return
+
+        time.sleep(HOLD)
+        if GPIO.input(channel) != GPIO.HIGH:
+            syslog.syslog(f"pin {channel} ignored, low after {HOLD} s, {details}")
+            return
+        last_press[channel] = now
+        # journald keeps the syslog messages, see them with journalctl -t panel.
+        syslog.syslog(f"pin {channel}, {details}")
+
+        if channel == BUTTON_IP:
+            messages.put("IP " + ip_addresses())
+            return
+
+        try:
+            control_player(channel)
+        except dbus.DBusException as e:
+            syslog.syslog(syslog.LOG_ERR, str(e))
+            messages.put("PLAYER ERROR")
+    finally:
+        callback_end = time.monotonic()
 
 
 def setup_gpio():
