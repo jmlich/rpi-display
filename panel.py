@@ -68,6 +68,20 @@ playing_since = None
 # The song when Next was pressed last. Until the new stream sends its own
 # song, the player can still have the song of the old one.
 old_song = ""
+# The bottom row of the matrix shows the presses: each button has a pixel,
+# from left to right as on the box, and it is lit for PRESS_BLINK seconds
+# after a press. The last pixel of the row is lit while the alarms are off.
+PRESS_PIXELS = {
+    BUTTON_VOLUME_UP: 0,
+    BUTTON_VOLUME_DOWN: 1,
+    BUTTON_IP: 2,
+    BUTTON_NEXT: 3,
+    BUTTON_ALARM: 4,
+    BUTTON_PLAY: 5,
+}
+PRESS_BLINK = 0.6
+# The time.monotonic() of the last press of each button.
+pressed_at = {}
 # The alarms start the player at a set time, see alarms.ini.
 ALARMS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                            "alarms.ini")
@@ -210,7 +224,6 @@ def control_player(channel):
         if is_playing():
             syslog.syslog(f"pin {channel} sends Stop")
             proxy.Stop(dbus_interface=PLAYER)
-            messages.put("STOP")
         else:
             syslog.syslog(f"pin {channel} sends Play")
             play(proxy)
@@ -313,7 +326,8 @@ def stop_alarm():
         proxy = mpris_player()
         if proxy is not None and is_playing():
             proxy.Stop(dbus_interface=PLAYER)
-            messages.put("STOP")
+            # Its pixel blinks as if the big button stopped it.
+            pressed_at[BUTTON_PLAY] = time.monotonic()
     except dbus.DBusException as e:
         syslog.syslog(syslog.LOG_ERR, str(e))
 
@@ -369,6 +383,7 @@ def button_pressed(channel):
             syslog.syslog(f"pin {channel} ignored, low after {HOLD} s, {details}")
             return
         last_press[channel] = now
+        pressed_at[channel] = now
         # journald keeps the syslog messages, see them with journalctl -t panel.
         syslog.syslog(f"pin {channel}, {details}")
 
@@ -423,9 +438,20 @@ def make_device():
     return device
 
 
+def draw_bottom_row(draw, width):
+    # Neither the clock nor the messages use the bottom row.
+    now = time.monotonic()
+    for channel, pixel in PRESS_PIXELS.items():
+        if now - pressed_at.get(channel, 0) < PRESS_BLINK:
+            draw.point((pixel, 7), fill="white")
+    if os.path.exists(ALARMS_OFF_FILE):
+        draw.point((width - 1, 7), fill="white")
+
+
 def scroll_message(device, message):
-    # show_message() of luma.core.legacy, but a new message stops it, so a
-    # second press does not wait for the first one to scroll to the end.
+    # show_message() of luma.core.legacy, but each frame is drawn again, so
+    # the bottom row stays, and a new message stops it, so a second press does
+    # not wait for the first one to scroll to the end.
     font = proportional(CP437_FONT)
     regulator = framerate_regulator(1 / 0.03)
     width = textsize(message, font)[0]
@@ -436,6 +462,7 @@ def scroll_message(device, message):
             with canvas(device) as draw:
                 text(draw, (device.width - x, 0), message, fill="white",
                      font=font)
+                draw_bottom_row(draw, device.width)
 
 
 def display_loop(device):
@@ -485,10 +512,7 @@ def display_loop(device):
 
         with canvas(device) as draw:
             text(draw, (0, 0), msg, fill="white", font=proportional(CP437_FONT))
-            # The bottom-left pixel says the alarms are off. The clock never
-            # uses the bottom row.
-            if os.path.exists(ALARMS_OFF_FILE):
-                draw.point((0, 7), fill="white")
+            draw_bottom_row(draw, device.width)
 
         time.sleep(0.3)
 

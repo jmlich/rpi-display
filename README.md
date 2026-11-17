@@ -40,7 +40,13 @@ From left to right on the box:
 
 Each press scrolls what it did, for example `NEXT Dvojka` or `VOL UP 50`. A
 play scrolls only the song. When the stream sends no song within 6 seconds,
-it scrolls the stream name, or `PLAY RADIO` when the stream has no name.
+it scrolls the stream name, or `PLAY RADIO` when the stream has no name. A
+stop scrolls nothing, it is heard.
+
+The bottom row of the matrix shows the presses. Each button has a pixel there,
+in the same order as on the box: the first pixel is volume up, the sixth one
+the big button. It is lit for a moment after a press.
+
 The LED blinks while the player plays. Every press goes to the journal:
 
     journalctl -t panel
@@ -64,7 +70,7 @@ the big button. An alarm does nothing when the player already plays. A change
 in the file counts from the next minute, no restart is needed.
 
 Pin 3 turns all alarms off and on again. While they are off, the file
-`alarms_off` exists next to the script and the bottom-left pixel of the matrix
+`alarms_off` exists next to the script and the last pixel of the bottom row
 is lit.
 
 ## Files
