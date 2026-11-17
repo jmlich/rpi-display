@@ -38,7 +38,9 @@ From left to right on the box:
 | row of three, 3rd   | 3   | turns the alarms off and on      |
 | big button          | 18  | starts and stops the player      |
 
-Each press scrolls what it did, for example `NEXT Dvojka` or `VOL UP 50`.
+Each press scrolls what it did, for example `NEXT Dvojka` or `VOL UP 50`. A
+play scrolls only the song. When the stream sends no song within 6 seconds,
+it scrolls the stream name, or `PLAY RADIO` when the stream has no name.
 The LED blinks while the player plays. Every press goes to the journal:
 
     journalctl -t panel

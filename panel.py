@@ -57,6 +57,13 @@ FADE_STEP = 0.2
 # when it changes, and again every SONG_EVERY seconds.
 SONG_CHECK = 2
 SONG_EVERY = 60
+# A stream sends the song a few seconds after it starts. Until then nothing
+# scrolls, so it is not the stream name and right after it the song. When the
+# song is still unknown after SONG_WAIT seconds, the stream name scrolls.
+SONG_WAIT = 6
+# When song() first saw the player play, as time.monotonic(). None when it
+# does not play, and after Next, which starts a stream again.
+playing_since = None
 # The alarms start the player at a set time, see alarms.ini.
 ALARMS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                            "alarms.ini")
@@ -116,9 +123,15 @@ def track_title():
 
 
 def song():
-    # What the stream plays now, or "" when nothing plays.
+    # What the stream plays now, or "" when nothing plays or the song is not
+    # known yet.
+    global playing_since
+
     if not is_playing():
+        playing_since = None
         return ""
+    if playing_since is None:
+        playing_since = time.monotonic()
     try:
         proxy = mpris_player()
         metadata = proxy.Get(PLAYER, "Metadata",
@@ -128,12 +141,14 @@ def song():
     # VLC puts the song of a stream, usually "artist - title", in
     # vlc:nowplaying. Other players put it in xesam:title.
     name = str(metadata.get("vlc:nowplaying", ""))
-    if name == "":
+    if name == "" and time.monotonic() - playing_since >= SONG_WAIT:
         name = str(metadata.get("xesam:title", ""))
+        if name == "":
+            name = "PLAY RADIO"
     return ascii_only(name)
 
 
-def play(proxy, action, volume=None):
+def play(proxy, volume=None):
     # Without a volume it plays at the saved one.
     if volume is None:
         try:
@@ -148,8 +163,7 @@ def play(proxy, action, volume=None):
     proxy.Play(dbus_interface=PLAYER)
     # In its own thread, so the buttons work while it fades in.
     threading.Thread(target=fade_in, args=(volume,), daemon=True).start()
-    time.sleep(1)
-    messages.put(action + " " + track_title())
+    # No message here, display_loop() scrolls the song.
 
 
 def fade_in(volume):
@@ -174,6 +188,7 @@ def fade_in(volume):
 
 def control_player(channel):
     global stop_at
+    global playing_since
 
     proxy = mpris_player()
     if proxy is None:
@@ -191,9 +206,10 @@ def control_player(channel):
             messages.put("STOP")
         else:
             syslog.syslog(f"pin {channel} sends Play")
-            play(proxy, "PLAY")
+            play(proxy)
     elif channel == BUTTON_NEXT:
         proxy.Next(dbus_interface=PLAYER)
+        playing_since = None
         # The player needs a moment to switch the metadata.
         time.sleep(1)
         messages.put("NEXT " + track_title())
@@ -261,7 +277,7 @@ def run_alarms():
         # When it already plays, somebody listens, so it is left alone.
         if is_playing():
             return
-        play(proxy, "ALARM", volume)
+        play(proxy, volume)
     except dbus.DBusException as e:
         syslog.syslog(syslog.LOG_ERR, str(e))
         messages.put("PLAYER ERROR")
