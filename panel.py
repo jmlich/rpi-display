@@ -49,6 +49,10 @@ VOLUME_STEP = 0.1
 # and sets it before every Play.
 VOLUME_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                            "volume.txt")
+# A Play starts silent and gets louder in FADE_STEPS steps, one every
+# FADE_STEP seconds, so 5 seconds in all.
+FADE_STEPS = 20
+FADE_STEP = 0.25
 # While it plays, the display checks the song this often. It scrolls the song
 # when it changes, and again every SONG_EVERY seconds.
 SONG_CHECK = 2
@@ -136,12 +140,36 @@ def play(proxy, action, volume=None):
             volume = float(open(VOLUME_FILE).read())
         except (OSError, ValueError):
             pass
-    if volume is not None:
-        proxy.Set(PLAYER, "Volume", dbus.Double(volume),
-                  dbus_interface=dbus.PROPERTIES_IFACE)
+    if volume is None:
+        volume = float(proxy.Get(PLAYER, "Volume",
+                                 dbus_interface=dbus.PROPERTIES_IFACE))
+    proxy.Set(PLAYER, "Volume", dbus.Double(0.0),
+              dbus_interface=dbus.PROPERTIES_IFACE)
     proxy.Play(dbus_interface=PLAYER)
+    # In its own thread, so the buttons work while it fades in.
+    threading.Thread(target=fade_in, args=(volume,), daemon=True).start()
     time.sleep(1)
     messages.put(action + " " + track_title())
+
+
+def fade_in(volume):
+    try:
+        proxy = mpris_player()
+        if proxy is None:
+            return
+        last = 0.0
+        for step in range(1, FADE_STEPS + 1):
+            time.sleep(FADE_STEP)
+            # A volume button during the fade wins, the fade ends.
+            current = proxy.Get(PLAYER, "Volume",
+                                dbus_interface=dbus.PROPERTIES_IFACE)
+            if abs(current - last) > 0.01:
+                return
+            last = volume * step / FADE_STEPS
+            proxy.Set(PLAYER, "Volume", dbus.Double(last),
+                      dbus_interface=dbus.PROPERTIES_IFACE)
+    except dbus.DBusException as e:
+        syslog.syslog(syslog.LOG_ERR, f"fade in: {e}")
 
 
 def control_player(channel):
