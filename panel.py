@@ -50,9 +50,9 @@ VOLUME_STEP = 0.1
 VOLUME_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                            "volume.txt")
 # A Play starts silent and gets louder in FADE_STEPS steps, one every
-# FADE_STEP seconds, so 5 seconds in all.
-FADE_STEPS = 20
-FADE_STEP = 0.25
+# FADE_STEP seconds, so 3 seconds in all.
+FADE_STEPS = 15
+FADE_STEP = 0.2
 # While it plays, the display checks the song this often. It scrolls the song
 # when it changes, and again every SONG_EVERY seconds.
 SONG_CHECK = 2

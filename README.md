@@ -51,7 +51,7 @@ controls it over MPRIS on the session bus, so it works with any MPRIS player.
 The stream name and the volume scroll on the matrix. While it plays, the song
 scrolls when it changes and once a minute. The volume is kept in `volume.txt`
 next to the script, so it survives a restart. A play fades in from silence
-to that volume in 5 seconds.
+to that volume in 3 seconds.
 
 ## Alarms
 
